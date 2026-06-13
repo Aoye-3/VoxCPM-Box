@@ -23,6 +23,8 @@ Acceptance:
 
 ## Phase 2: Electron React App Shell
 
+Current status: implemented as the default AppShell route.
+
 Tasks:
 
 - Keep Electron as the desktop entry.
@@ -43,6 +45,8 @@ Acceptance:
 
 ## Phase 3: Storage Layer
 
+Current status: implemented for local SQLite metadata, voice audio copy, generation output copy, and service-level tests.
+
 Tasks:
 
 - Create `src/voxcpm_app/`.
@@ -58,6 +62,8 @@ Acceptance:
 - Audio files are copied to the expected directories.
 
 ## Phase 4: App Service Integration
+
+Current status: read-side AppShell integration is implemented for Voice Library and History through Electron IPC and the Python app service CLI. Native create/save/generate flows are still planned.
 
 Tasks:
 

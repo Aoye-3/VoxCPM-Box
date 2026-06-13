@@ -19,6 +19,7 @@ body {
 
 button,
 select,
+input,
 textarea {
   font: inherit;
 }
@@ -273,7 +274,8 @@ h1 {
   font-weight: 700;
 }
 
-.field-stack select {
+.field-stack select,
+.field-stack input {
   width: 100%;
   min-height: 42px;
   padding: 0 14px;
@@ -281,6 +283,10 @@ h1 {
   background: #f6f4ee;
   border: 1px solid #ddd9cf;
   border-radius: 999px;
+}
+
+.field-stack input[readonly] {
+  color: #686964;
 }
 
 .native-workbench {
@@ -402,6 +408,55 @@ h1 {
   color: #686964;
   font-size: 14px;
   line-height: 1.5;
+}
+
+.adapter-summary {
+  display: grid;
+  grid-template-columns: 86px 1fr;
+  gap: 8px 12px;
+  margin: 0;
+  color: #62645f;
+  font-size: 13px;
+}
+
+.adapter-summary dt {
+  color: #81786a;
+  font-weight: 800;
+}
+
+.adapter-summary dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.reserved-workbench {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.adapter-card,
+.empty-state {
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  min-height: 180px;
+  padding: 22px;
+  color: #686964;
+  background: #f7f6f2;
+  border: 1px solid #e1ddd4;
+  border-radius: 6px;
+}
+
+.adapter-card h2,
+.empty-state h2 {
+  margin: 0;
+  color: #252622;
+  font-size: 18px;
+}
+
+.empty-state p {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .library-layout {

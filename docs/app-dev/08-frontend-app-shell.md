@@ -103,6 +103,12 @@ Later iterations:
 - Connect native generation controls to stable app APIs or service boundaries.
 - Reuse upstream behavior through stable callable or launch boundaries when upstream changes are pulled.
 
+Current AppShell integration:
+
+- Voice Library and History read local records through Electron IPC and `voxcpm_app.service_cli`.
+- Voice Design, Voice Cloning, Ultimate Cloning, LoRA Training, and LoRA Inference expose native interface placeholders and typed adapter names.
+- Native generation execution and LoRA training are not started from AppShell yet.
+
 ## Voice Library Page
 
 The first native page should support the product shape before persistence exists:

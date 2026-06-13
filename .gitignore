@@ -3,6 +3,9 @@ launch.json
 __pycache__
 voxcpm.egg-info
 node_modules/
+dist/
+data/app/
+.pytest-tmp/
 .local-ffmpeg/
 *.log
 .DS_Store

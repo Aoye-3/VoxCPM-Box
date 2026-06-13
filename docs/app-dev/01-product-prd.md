@@ -44,9 +44,10 @@ The Electron app shell must expose these pages:
 
 Required behavior:
 
-- Start in a desktop window with a loading state while the backend starts.
-- Start the current backend through `run_with_local_ffmpeg.py app.py --port 8808 --device cuda`.
-- Keep the backend lifecycle in Electron.
+- Start in a desktop window with a loading state while AppShell initializes.
+- Do not start or embed the legacy Gradio WebUI in default AppShell mode.
+- Keep the legacy Gradio backend on `start_voxcpm.bat` or explicit `VOXCPM_START_LEGACY_GRADIO=1` development mode.
+- Keep lifecycle ownership in Electron for future AppShell-owned services.
 - Render native AppShell pages for generation modes without embedding Gradio.
 - Preserve the original Gradio startup route as the legacy/developer WebUI.
 - Use `lucide-react` for sidebar and action icons.
@@ -164,7 +165,7 @@ Required behavior:
 - The shell uses `lucide-react` icons only for navigation and common actions.
 - Generation pages render in AppShell mode without an embedded Gradio iframe or webview.
 - The original Gradio route can still be started separately from `start_voxcpm.bat`.
-- A user can save a reference audio file as a named voice and reuse it after restarting the app.
+- The local app service can save a reference audio file as a named voice and list it after restart.
 - A user can generate speech with a saved voice.
 - A successful generation appears in history with playable output audio.
 - A failed generation appears in history with an error summary.

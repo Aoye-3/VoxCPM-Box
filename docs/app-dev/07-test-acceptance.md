@@ -28,10 +28,21 @@ Required scenarios:
 
 Required scenarios:
 
-- Electron starts the Python backend.
-- Electron loads `http://127.0.0.1:8808` inside the app window.
-- Closing the Electron window stops backend processes.
-- Port `8808` is not left in `Listen` state after close.
+- Default AppShell opens the React renderer without starting or embedding the legacy Gradio WebUI.
+- Renderer receives AppShell status through IPC.
+- Voice Library and History can request data through the app-service IPC boundary.
+- Explicit `VOXCPM_START_LEGACY_GRADIO=1` development mode starts the legacy Python backend.
+- Closing the Electron window stops only AppShell-owned backend processes.
+
+## App Service CLI Tests
+
+Required scenarios:
+
+- `list-voices` returns an empty list for a new app data root.
+- `create-voice` copies source audio and returns stored metadata.
+- `list-generations` returns non-deleted history records.
+- Generation status actions move records through `pending`, `running`, `succeeded`, and `failed`.
+- Unknown CLI actions return a JSON error.
 
 ## Regression Tests
 
@@ -50,4 +61,3 @@ Docs are acceptable when:
 - Table names, field names, status enum, and paths are consistent.
 - Model internals and training are not documented as app-layer scope.
 - A future AI agent can implement Phase 2 without asking for storage path, table purpose, or deletion policy.
-

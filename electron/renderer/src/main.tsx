@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   AudioWaveform,
@@ -18,12 +18,21 @@ import {
 } from "lucide-react";
 import "./styles.css";
 
-type PageKey = "design" | "clone" | "ultimate" | "library" | "history" | "settings";
+type PageKey = "design" | "clone" | "ultimate" | "loraTraining" | "loraInference" | "library" | "history" | "settings";
 type LanguageCode = "en" | "zh";
+type AppDataState = "idle" | "loading" | "ready" | "failed";
+type FeatureMode = "voice-design" | "voice-cloning" | "ultimate-cloning" | "lora-training" | "lora-inference";
 type NavItem = {
   key: PageKey;
   labelKey: keyof typeof messages.en;
   icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
+};
+
+type FeatureAdapter = {
+  mode: FeatureMode;
+  requestType: string;
+  responseType: string;
+  status: "reserved";
 };
 
 const messages = {
@@ -32,6 +41,8 @@ const messages = {
     navDesign: "Voice Design",
     navClone: "Voice Cloning",
     navUltimate: "Ultimate Cloning",
+    navLoraTraining: "LoRA Training",
+    navLoraInference: "LoRA Inference",
     navLibrary: "Voice Library",
     navHistory: "History",
     navSettings: "Settings",
@@ -40,6 +51,8 @@ const messages = {
     designDescription: "Create a new voice directly from target text and a control instruction.",
     cloneDescription: "Reuse a saved voice or upload a reference clip for controllable cloning.",
     ultimateDescription: "Use reference audio and transcript text for the full cloning workflow.",
+    loraTrainingDescription: "Prepare the fine-tuning surface for manifest-driven LoRA training.",
+    loraInferenceDescription: "Prepare the LoRA checkpoint selection surface for model inference.",
     generate: "Generate",
     saveVoice: "Save Voice",
     language: "Language",
@@ -56,6 +69,19 @@ const messages = {
       "Type the speech content here. App mode will connect this surface to VoxCPM services in the next implementation phase.",
     generationOutput: "Generation Output",
     noGeneration: "No app-mode generation yet",
+    adapter: "Adapter",
+    adapterReserved: "Interface reserved",
+    request: "Request",
+    response: "Response",
+    loadFailed: "Could not load app data",
+    loadingData: "Loading app data",
+    noSavedVoices: "No saved voices",
+    noHistoryItems: "No generation history",
+    retry: "Retry",
+    pretrainedModel: "Pretrained Model",
+    trainingManifest: "Training Manifest",
+    loraCheckpoint: "LoRA Checkpoint",
+    outputDirectory: "Output Directory",
     appModeNote:
       "Gradio remains available from the original launcher. This AppShell is the new product surface for saved voices, history, settings, and future native generation controls.",
     importVoice: "Import Voice",
@@ -93,6 +119,8 @@ const messages = {
     navDesign: "声音设计",
     navClone: "声音克隆",
     navUltimate: "极致克隆",
+    navLoraTraining: "LoRA 微调",
+    navLoraInference: "LoRA 推理",
     navLibrary: "音色库",
     navHistory: "历史记录",
     navSettings: "设置",
@@ -101,6 +129,8 @@ const messages = {
     designDescription: "通过目标文本和控制提示词直接创建新的声音表达。",
     cloneDescription: "复用已保存音色，或上传参考音频进行可控克隆。",
     ultimateDescription: "使用参考音频和转写文本完成完整克隆流程。",
+    loraTrainingDescription: "为基于训练清单的 LoRA 微调预留配置界面。",
+    loraInferenceDescription: "为选择 LoRA 检查点并执行推理预留配置界面。",
     generate: "生成",
     saveVoice: "保存音色",
     language: "语言",
@@ -116,6 +146,19 @@ const messages = {
     targetTextValue: "在这里输入要合成的文本。App 模式会在下一阶段接入 VoxCPM 服务。",
     generationOutput: "生成结果",
     noGeneration: "暂无 App 模式生成结果",
+    adapter: "适配器",
+    adapterReserved: "接口已预留",
+    request: "请求",
+    response: "响应",
+    loadFailed: "无法加载应用数据",
+    loadingData: "正在加载应用数据",
+    noSavedVoices: "暂无已保存音色",
+    noHistoryItems: "暂无生成历史",
+    retry: "重试",
+    pretrainedModel: "预训练模型",
+    trainingManifest: "训练清单",
+    loraCheckpoint: "LoRA 检查点",
+    outputDirectory: "输出目录",
     appModeNote: "Gradio 仍可通过原启动器使用。AppShell 是音色库、历史、设置和未来原生生成控件的新产品界面。",
     importVoice: "导入音色",
     createVoice: "创建音色",
@@ -153,50 +196,45 @@ const navItems: NavItem[] = [
   { key: "design", labelKey: "navDesign", icon: WandSparkles },
   { key: "clone", labelKey: "navClone", icon: Mic2 },
   { key: "ultimate", labelKey: "navUltimate", icon: AudioWaveform },
+  { key: "loraTraining", labelKey: "navLoraTraining", icon: SlidersHorizontal },
+  { key: "loraInference", labelKey: "navLoraInference", icon: FileAudio },
   { key: "library", labelKey: "navLibrary", icon: Library },
   { key: "history", labelKey: "navHistory", icon: History },
   { key: "settings", labelKey: "navSettings", icon: Settings },
 ];
 
-function getVoiceCards(t: (key: MessageKey) => string) {
-  return [
-    {
-      name: "Studio Narrator",
-      note: t("studioNarratorNote"),
-      tags: ["en", "narration"],
-      active: true,
-    },
-    {
-      name: "Mandarin Explainer",
-      note: t("mandarinExplainerNote"),
-      tags: ["zh", "guide"],
-      active: false,
-    },
-  ];
-}
-
-function getHistoryRows(t: (key: MessageKey) => string) {
-  return [
-    {
-      voice: "Studio Narrator",
-      meta: "en / VoxCPM2 / 0:15",
-      text: t("historyTextOne"),
-      time: t("today"),
-    },
-    {
-      voice: "Mandarin Explainer",
-      meta: "zh / VoxCPM2 / 0:13",
-      text: t("historyTextTwo"),
-      time: t("daysAgo"),
-    },
-    {
-      voice: "Studio Narrator",
-      meta: "en / VoxCPM2 / 0:09",
-      text: t("historyTextThree"),
-      time: t("daysAgo"),
-    },
-  ];
-}
+const featureAdapters: Record<FeatureMode, FeatureAdapter> = {
+  "voice-design": {
+    mode: "voice-design",
+    requestType: "VoiceDesignRequest",
+    responseType: "GenerationResult",
+    status: "reserved",
+  },
+  "voice-cloning": {
+    mode: "voice-cloning",
+    requestType: "VoiceCloningRequest",
+    responseType: "GenerationResult",
+    status: "reserved",
+  },
+  "ultimate-cloning": {
+    mode: "ultimate-cloning",
+    requestType: "UltimateCloningRequest",
+    responseType: "GenerationResult",
+    status: "reserved",
+  },
+  "lora-training": {
+    mode: "lora-training",
+    requestType: "LoraTrainingRequest",
+    responseType: "LoraTrainingJob",
+    status: "reserved",
+  },
+  "lora-inference": {
+    mode: "lora-inference",
+    requestType: "LoraInferenceRequest",
+    responseType: "GenerationResult",
+    status: "reserved",
+  },
+};
 
 function App() {
   const [activePage, setActivePage] = useState<PageKey>("design");
@@ -210,6 +248,10 @@ function App() {
     message: messages.en.starting,
     detail: "",
   });
+  const [voices, setVoices] = useState<AppVoice[]>([]);
+  const [generations, setGenerations] = useState<AppGeneration[]>([]);
+  const [appDataState, setAppDataState] = useState<AppDataState>("idle");
+  const [appDataError, setAppDataError] = useState("");
 
   const t = useMemo(() => {
     return (key: MessageKey) => messages[language][key] ?? messages.en[key];
@@ -227,6 +269,32 @@ function App() {
     });
     window.voxcpmShell?.onStatus((payload) => setStatus(payload));
   }, []);
+
+  const loadAppData = useCallback(async () => {
+    if (!window.voxcpmShell?.listVoices || !window.voxcpmShell?.listGenerations) {
+      setAppDataState("ready");
+      return;
+    }
+
+    setAppDataState("loading");
+    setAppDataError("");
+    try {
+      const [voiceResult, generationResult] = await Promise.all([
+        window.voxcpmShell.listVoices(),
+        window.voxcpmShell.listGenerations(),
+      ]);
+      setVoices(voiceResult.items);
+      setGenerations(generationResult.items);
+      setAppDataState("ready");
+    } catch (error) {
+      setAppDataState("failed");
+      setAppDataError(error instanceof Error ? error.message : String(error));
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAppData();
+  }, [loadAppData]);
 
   const activeNav = useMemo(() => navItems.find((item) => item.key === activePage), [activePage]);
   const appReady = status.state === "ready";
@@ -275,6 +343,7 @@ function App() {
             status={status}
             appReady={appReady}
             accent="design"
+            modeKey="voice-design"
             description={t("designDescription")}
             language={language}
             t={t}
@@ -286,6 +355,7 @@ function App() {
             status={status}
             appReady={appReady}
             accent="clone"
+            modeKey="voice-cloning"
             description={t("cloneDescription")}
             language={language}
             t={t}
@@ -297,13 +367,46 @@ function App() {
             status={status}
             appReady={appReady}
             accent="ultimate"
+            modeKey="ultimate-cloning"
             description={t("ultimateDescription")}
             language={language}
             t={t}
           />
         )}
-        {activePage === "library" && <VoiceLibraryPage t={t} />}
-        {activePage === "history" && <HistoryPage t={t} />}
+        {activePage === "loraTraining" && (
+          <ReservedFeaturePage
+            mode={t("navLoraTraining")}
+            modeKey="lora-training"
+            description={t("loraTrainingDescription")}
+            t={t}
+          />
+        )}
+        {activePage === "loraInference" && (
+          <ReservedFeaturePage
+            mode={t("navLoraInference")}
+            modeKey="lora-inference"
+            description={t("loraInferenceDescription")}
+            t={t}
+          />
+        )}
+        {activePage === "library" && (
+          <VoiceLibraryPage
+            voices={voices}
+            appDataState={appDataState}
+            appDataError={appDataError}
+            reload={loadAppData}
+            t={t}
+          />
+        )}
+        {activePage === "history" && (
+          <HistoryPage
+            generations={generations}
+            appDataState={appDataState}
+            appDataError={appDataError}
+            reload={loadAppData}
+            t={t}
+          />
+        )}
         {activePage === "settings" && (
           <SettingsPage
             status={status}
@@ -360,6 +463,7 @@ function GenerationPage({
   status,
   appReady,
   accent,
+  modeKey,
   description,
   language,
   t,
@@ -368,10 +472,13 @@ function GenerationPage({
   status: ShellStatus;
   appReady: boolean;
   accent: string;
+  modeKey: FeatureMode;
   description: string;
   language: LanguageCode;
   t: (key: MessageKey) => string;
 }) {
+  const adapter = featureAdapters[modeKey];
+
   return (
     <section className={`generation-grid ${accent}`}>
       <div className="mode-panel">
@@ -438,6 +545,16 @@ function GenerationPage({
                 <span>{t("noGeneration")}</span>
               </div>
               <p>{t("appModeNote")}</p>
+              <dl className="adapter-summary">
+                <dt>{t("adapter")}</dt>
+                <dd>{adapter.mode}</dd>
+                <dt>{t("request")}</dt>
+                <dd>{adapter.requestType}</dd>
+                <dt>{t("response")}</dt>
+                <dd>{adapter.responseType}</dd>
+                <dt>{t("runtime")}</dt>
+                <dd>{t("adapterReserved")}</dd>
+              </dl>
             </aside>
           </>
         )}
@@ -456,8 +573,73 @@ function LoadingPanel({ status }: { status: ShellStatus }) {
   );
 }
 
-function VoiceLibraryPage({ t }: { t: (key: MessageKey) => string }) {
-  const voiceCards = getVoiceCards(t);
+function ReservedFeaturePage({
+  mode,
+  modeKey,
+  description,
+  t,
+}: {
+  mode: string;
+  modeKey: FeatureMode;
+  description: string;
+  t: (key: MessageKey) => string;
+}) {
+  const adapter = featureAdapters[modeKey];
+
+  return (
+    <section className="generation-grid reserved">
+      <div className="mode-panel">
+        <div className="mode-header">
+          <SlidersHorizontal size={20} />
+          <span>{mode}</span>
+        </div>
+        <p className="mode-description">{description}</p>
+        <div className="field-stack">
+          <label>
+            <span>{t("pretrainedModel")}</span>
+            <input value="openbmb/VoxCPM2" readOnly />
+          </label>
+          <label>
+            <span>{modeKey === "lora-training" ? t("trainingManifest") : t("loraCheckpoint")}</span>
+            <input value={modeKey === "lora-training" ? "examples/train_data_example.jsonl" : "None"} readOnly />
+          </label>
+          <label>
+            <span>{t("outputDirectory")}</span>
+            <input value={modeKey === "lora-training" ? "lora/" : "data/app/generations/"} readOnly />
+          </label>
+        </div>
+      </div>
+      <div className="native-workbench reserved-workbench">
+        <div className="adapter-card">
+          <h2>{t("adapterReserved")}</h2>
+          <dl className="adapter-summary">
+            <dt>{t("adapter")}</dt>
+            <dd>{adapter.mode}</dd>
+            <dt>{t("request")}</dt>
+            <dd>{adapter.requestType}</dd>
+            <dt>{t("response")}</dt>
+            <dd>{adapter.responseType}</dd>
+          </dl>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function VoiceLibraryPage({
+  voices,
+  appDataState,
+  appDataError,
+  reload,
+  t,
+}: {
+  voices: AppVoice[];
+  appDataState: AppDataState;
+  appDataError: string;
+  reload: () => void;
+  t: (key: MessageKey) => string;
+}) {
+  const isLoading = appDataState === "loading" || appDataState === "idle";
 
   return (
     <section className="library-layout">
@@ -471,14 +653,17 @@ function VoiceLibraryPage({ t }: { t: (key: MessageKey) => string }) {
           {t("createVoice")}
         </button>
       </div>
+      {isLoading && <EmptyState title={t("loadingData")} />}
+      {appDataState === "failed" && <EmptyState title={t("loadFailed")} detail={appDataError} actionLabel={t("retry")} onAction={reload} />}
+      {appDataState === "ready" && voices.length === 0 && <EmptyState title={t("noSavedVoices")} />}
       <div className="voice-card-grid">
-        {voiceCards.map((voice) => (
-          <article className={`voice-card ${voice.active ? "selected" : ""}`} key={voice.name}>
+        {voices.map((voice) => (
+          <article className="voice-card" key={voice.id}>
             <div className="voice-card-title">
               <AudioWaveform size={20} />
-              <h2>{voice.name}</h2>
+              <h2>{voice.display_name}</h2>
             </div>
-            <p>{voice.note}</p>
+            <p>{voice.notes || voice.audio_path}</p>
             <div className="tag-row">
               {voice.tags.map((tag) => (
                 <span key={tag}>{tag}</span>
@@ -502,20 +687,34 @@ function VoiceLibraryPage({ t }: { t: (key: MessageKey) => string }) {
   );
 }
 
-function HistoryPage({ t }: { t: (key: MessageKey) => string }) {
-  const historyRows = getHistoryRows(t);
-
+function HistoryPage({
+  generations,
+  appDataState,
+  appDataError,
+  reload,
+  t,
+}: {
+  generations: AppGeneration[];
+  appDataState: AppDataState;
+  appDataError: string;
+  reload: () => void;
+  t: (key: MessageKey) => string;
+}) {
+  const isLoading = appDataState === "loading" || appDataState === "idle";
   return (
     <section className="history-list">
-      {historyRows.map((row) => (
-        <article className="history-row" key={`${row.voice}-${row.text}`}>
+      {isLoading && <EmptyState title={t("loadingData")} />}
+      {appDataState === "failed" && <EmptyState title={t("loadFailed")} detail={appDataError} actionLabel={t("retry")} onAction={reload} />}
+      {appDataState === "ready" && generations.length === 0 && <EmptyState title={t("noHistoryItems")} />}
+      {generations.map((row) => (
+        <article className="history-row" key={row.id}>
           <AudioWaveform size={22} className="wave-icon" />
           <div className="history-main">
-            <h2>{row.voice}</h2>
-            <p>{row.meta}</p>
-            <span>{row.time}</span>
+            <h2>{row.status}</h2>
+            <p>VoxCPM2 / {row.sample_rate ? `${row.sample_rate} Hz` : "--"}</p>
+            <span>{row.created_at}</span>
           </div>
-          <div className="history-text">{row.text}</div>
+          <div className="history-text">{row.input_text}</div>
           <div className="history-actions">
             <button title={t("favorite")} aria-label={t("favorite")}>
               <Star size={19} />
@@ -528,6 +727,30 @@ function HistoryPage({ t }: { t: (key: MessageKey) => string }) {
       ))}
       <div className="end-note">{t("endReached")}</div>
     </section>
+  );
+}
+
+function EmptyState({
+  title,
+  detail,
+  actionLabel,
+  onAction,
+}: {
+  title: string;
+  detail?: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
+  return (
+    <div className="empty-state">
+      <h2>{title}</h2>
+      {detail && <p>{detail}</p>}
+      {actionLabel && onAction && (
+        <button className="ghost-action" type="button" onClick={onAction}>
+          {actionLabel}
+        </button>
+      )}
+    </div>
   );
 }
 

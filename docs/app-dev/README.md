@@ -9,7 +9,9 @@ This documentation describes VoxCPM-Box application-layer development on top of 
 - The Electron AppShell route is a separate React app mode launched through `start_electron_shell.bat` or `start_electron_shell.vbs`.
 - `run_with_local_ffmpeg.py` prepares project-local FFmpeg access before launching Python entrypoints.
 - The current Electron renderer uses Vite, React, TypeScript, and `lucide-react`.
-- There is no persistent Voice Library, Generation History, app data directory, or standalone application API layer yet.
+- A local app storage layer now exists under `src/voxcpm_app/` for Voice Library and Generation History metadata.
+- The Electron AppShell reads Voice Library and History records through IPC-backed app service calls.
+- Native save-voice actions, generation execution, and history recording from the generation forms are still planned integration work.
 - VoxCPM-Box targets ordinary-user voiceover workflows while preserving upstream source behavior.
 
 ## First Scope
@@ -72,7 +74,7 @@ The SQLite database stores metadata. Audio files stay on disk and are referenced
 ## Roadmap Overview
 
 1. Phase 1: Documentation and app data conventions.
-2. Phase 2: Storage layer and SQLite schema.
-3. Phase 3: React app shell with Voicebox-style navigation and native app-mode pages.
+2. Phase 2: Electron React app shell with native app-mode pages.
+3. Phase 3: Storage layer and SQLite schema.
 4. Phase 4: App service integration for Voice Library and History.
 5. Phase 5: Tests, migration checks, and packaging preparation.

@@ -32,12 +32,13 @@ Implemented:
 - Electron + React + TypeScript AppShell development route.
 - Bilingual AppShell UI switch: English / Chinese.
 - Project-local FFmpeg wrapper support.
+- Local SQLite/file app service layer for saved voices and generation history metadata.
 - App development documentation under `docs/app-dev/`.
 
 In progress / planned:
 
-- Voice Library for saving uploaded reference voices.
-- Generation History with reusable parameters.
+- Native AppShell save/import actions for the Voice Library.
+- Generation execution integration that records History from native AppShell controls.
 - Script Breakdown for splitting long scripts into smaller generation tasks.
 - Batch Task Queue for multi-segment voiceover work.
 - Role Profiles for character settings, notes, voice choice, and prompt guidance.

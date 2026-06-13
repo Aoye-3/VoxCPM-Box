@@ -10,6 +10,18 @@ const mainUrl = `http://127.0.0.1:${mainPort}`;
 const outLogPath = path.join(projectDir, "voxcpm_webui.out.log");
 const errLogPath = path.join(projectDir, "voxcpm_webui.err.log");
 const shouldStartLegacyWebUI = process.env.VOXCPM_START_LEGACY_GRADIO === "1";
+const appServiceActions = new Set([
+  "list-voices",
+  "create-voice",
+  "update-voice",
+  "delete-voice",
+  "list-generations",
+  "create-generation",
+  "mark-generation-running",
+  "mark-generation-succeeded",
+  "mark-generation-failed",
+  "delete-generation",
+]);
 
 let mainWindow = null;
 let backendProcess = null;
@@ -89,6 +101,57 @@ function startBackend() {
   });
   backendProcess.on("error", (error) => {
     sendStatus("failed", "Failed to launch backend", error.stack || String(error));
+  });
+}
+
+function runAppService(action, payload = {}) {
+  if (!appServiceActions.has(action)) {
+    return Promise.reject(new Error(`Unsupported app service action: ${action}`));
+  }
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      pythonPath(),
+      ["-m", "voxcpm_app.service_cli", action, "--project-root", projectDir],
+      {
+        cwd: projectDir,
+        windowsHide: true,
+        stdio: ["pipe", "pipe", "pipe"],
+        env: {
+          ...process.env,
+          PYTHONPATH: [path.join(projectDir, "src"), process.env.PYTHONPATH || ""]
+            .filter(Boolean)
+            .join(path.delimiter),
+        },
+      }
+    );
+
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      let parsed = null;
+      try {
+        parsed = stdout.trim() ? JSON.parse(stdout) : {};
+      } catch (error) {
+        reject(new Error(`Invalid app service JSON: ${error.message}\n${stdout}\n${stderr}`));
+        return;
+      }
+
+      if (code !== 0) {
+        reject(new Error(parsed.error || stderr || `App service exited with code ${code}`));
+        return;
+      }
+      resolve(parsed);
+    });
+
+    child.stdin.end(JSON.stringify(payload || {}), "utf8");
   });
 }
 
@@ -179,6 +242,12 @@ ipcMain.handle("get-shell-state", () => ({
   errLogPath,
   status: lastStatus,
 }));
+
+ipcMain.handle("app-service", (_event, request) => {
+  const action = request && typeof request.action === "string" ? request.action : "";
+  const payload = request && typeof request.payload === "object" ? request.payload : {};
+  return runAppService(action, payload);
+});
 
 app.whenReady().then(() => {
   createWindow();

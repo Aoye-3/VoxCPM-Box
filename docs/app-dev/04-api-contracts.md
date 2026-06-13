@@ -203,3 +203,26 @@ Electron should:
 - Keep the original Gradio route separate from AppShell mode.
 
 Electron should not directly mutate SQLite app data in the first implementation.
+
+## Local App Service CLI
+
+Electron calls the Python app layer through a JSON CLI boundary:
+
+```text
+python -m voxcpm_app.service_cli <action> --project-root <project-root>
+```
+
+Input is a JSON object on stdin. Output is a JSON object on stdout.
+
+Initial actions:
+
+- `list-voices`
+- `create-voice`
+- `update-voice`
+- `delete-voice`
+- `list-generations`
+- `create-generation`
+- `mark-generation-running`
+- `mark-generation-succeeded`
+- `mark-generation-failed`
+- `delete-generation`
