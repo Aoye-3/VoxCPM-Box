@@ -1,10 +1,21 @@
-# VoxCPM-Box
+<div align="center">
+  <h1>VoxCPM-Box</h1>
+  <p><strong>A local desktop workspace for practical VoxCPM voiceover workflows.</strong></p>
+  <p>Video narration &middot; AIGC short-film dubbing &middot; Reusable voices &middot; Generation history</p>
 
-VoxCPM-Box is a local desktop app layer for VoxCPM. It is built for everyday voiceover work: video narration, AIGC short-film dubbing, reusable voices, generation history, script breakdown, batch tasks, and role profiles.
+  <p>
+    <a href="https://github.com/OpenBMB/VoxCPM"><img alt="Upstream VoxCPM" src="https://img.shields.io/badge/Upstream-OpenBMB%2FVoxCPM-2f6feb"></a>
+    <img alt="Development status" src="https://img.shields.io/badge/Status-Source%20Development-d9a52e">
+    <img alt="Desktop platform" src="https://img.shields.io/badge/Desktop-Windows-0078d4">
+    <img alt="Electron React TypeScript" src="https://img.shields.io/badge/AppShell-Electron%20%2B%20React%20%2B%20TypeScript-47848f">
+  </p>
+</div>
 
-This project is currently a source-development app shell. It keeps the upstream VoxCPM source route available while adding an AppShell route for ordinary users.
+![VoxCPM-Box History workspace](assets/screenshots/voxcpm-box-history.png)
 
-> Upstream engine: [OpenBMB/VoxCPM](https://github.com/OpenBMB/VoxCPM)
+VoxCPM-Box is an independent desktop app layer built on top of [OpenBMB/VoxCPM](https://github.com/OpenBMB/VoxCPM). It is designed for everyday local voiceover work while preserving the original VoxCPM source and Gradio development route.
+
+> VoxCPM-Box is currently a source-development AppShell. Native generation services and persistent app features are being connected incrementally.
 
 ## Project Goals
 
@@ -30,6 +41,17 @@ In progress / planned:
 - Script Breakdown for splitting long scripts into smaller generation tasks.
 - Batch Task Queue for multi-segment voiceover work.
 - Role Profiles for character settings, notes, voice choice, and prompt guidance.
+
+## AppShell Preview
+
+The current AppShell establishes the desktop information architecture before persistent services are connected.
+
+| Generation History | Voice Library |
+|---|---|
+| Review outputs and reusable generation context. | Organize saved reference voices for repeated use. |
+| ![Generation History](assets/screenshots/voxcpm-box-history.png) | ![Voice Library](assets/screenshots/voxcpm-box-appshell.png) |
+
+Screenshots use development seed data; persistent Voice Library and Generation History services are still planned work.
 
 ## Two Routes
 
