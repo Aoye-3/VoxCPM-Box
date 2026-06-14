@@ -63,7 +63,7 @@ Acceptance:
 
 ## Phase 4: App Service Integration
 
-Current status: read-side AppShell integration is implemented for Voice Library and History through Electron IPC and the Python app service CLI. Native create/save/generate flows are still planned.
+Current status: first minimal loop implemented. The AppShell starts a local Python backend, imports uploaded voices, generates audio with uploaded or saved voices, stores generated outputs, saves generated output as a voice, and refreshes Voice Library and History through IPC-backed backend calls.
 
 Tasks:
 

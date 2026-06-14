@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 const { spawn, execFile } = require("child_process");
 const fs = require("fs");
 const http = require("http");
@@ -7,8 +7,12 @@ const path = require("path");
 const projectDir = path.resolve(__dirname, "..");
 const mainPort = 8808;
 const mainUrl = `http://127.0.0.1:${mainPort}`;
+const appBackendPort = 8818;
+const appBackendUrl = `http://127.0.0.1:${appBackendPort}`;
 const outLogPath = path.join(projectDir, "voxcpm_webui.out.log");
 const errLogPath = path.join(projectDir, "voxcpm_webui.err.log");
+const appBackendOutLogPath = path.join(projectDir, "voxcpm_app_backend.out.log");
+const appBackendErrLogPath = path.join(projectDir, "voxcpm_app_backend.err.log");
 const shouldStartLegacyWebUI = process.env.VOXCPM_START_LEGACY_GRADIO === "1";
 const appServiceActions = new Set([
   "list-voices",
@@ -24,7 +28,8 @@ const appServiceActions = new Set([
 ]);
 
 let mainWindow = null;
-let backendProcess = null;
+let legacyBackendProcess = null;
+let appBackendProcess = null;
 let isQuitting = false;
 let lastStatus = { state: "starting", message: "Starting VoxCPM AppShell", detail: "" };
 
@@ -41,14 +46,29 @@ function pythonPath() {
   return fs.existsSync(venvPython) ? venvPython : "python";
 }
 
-function truncateLogs() {
-  fs.writeFileSync(outLogPath, "", "utf8");
-  fs.writeFileSync(errLogPath, "", "utf8");
+function pythonEnv() {
+  const localFfmpegDir = path.join(projectDir, ".local-ffmpeg");
+  const env = {
+    ...process.env,
+    PYTHONPATH: [path.join(projectDir, "src"), process.env.PYTHONPATH || ""]
+      .filter(Boolean)
+      .join(path.delimiter),
+  };
+  if (fs.existsSync(path.join(localFfmpegDir, "ffmpeg.exe"))) {
+    env.PATH = `${localFfmpegDir}${path.delimiter}${env.PATH || ""}`;
+    env.IMAGEIO_FFMPEG_EXE = path.join(localFfmpegDir, "ffmpeg.exe");
+  }
+  return env;
 }
 
-function isPortReady() {
+function truncateLogs(stdoutPath, stderrPath) {
+  fs.writeFileSync(stdoutPath, "", "utf8");
+  fs.writeFileSync(stderrPath, "", "utf8");
+}
+
+function isUrlReady(url) {
   return new Promise((resolve) => {
-    const request = http.get(mainUrl, (response) => {
+    const request = http.get(url, (response) => {
       response.resume();
       resolve(response.statusCode >= 200 && response.statusCode < 500);
     });
@@ -60,13 +80,14 @@ function isPortReady() {
   });
 }
 
-async function waitForBackend(timeoutMs = 180000) {
+async function waitForBackend(url, getProcess, timeoutMs = 180000) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
-    if (await isPortReady()) {
+    if (await isUrlReady(url)) {
       return true;
     }
-    if (backendProcess && backendProcess.exitCode !== null) {
+    const processRef = getProcess();
+    if (processRef && processRef.exitCode !== null) {
       return false;
     }
     await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -75,18 +96,18 @@ async function waitForBackend(timeoutMs = 180000) {
 }
 
 function startBackend() {
-  if (backendProcess) {
+  if (legacyBackendProcess) {
     return;
   }
 
-  truncateLogs();
+  truncateLogs(outLogPath, errLogPath);
   const py = pythonPath();
   const args = ["run_with_local_ffmpeg.py", "app.py", "--port", String(mainPort), "--device", "cuda"];
   const outLog = fs.openSync(outLogPath, "a");
   const errLog = fs.openSync(errLogPath, "a");
 
   sendStatus("starting", "Starting VoxCPM backend", `${py} ${args.join(" ")}`);
-  backendProcess = spawn(py, args, {
+  legacyBackendProcess = spawn(py, args, {
     cwd: projectDir,
     windowsHide: true,
     stdio: ["ignore", outLog, errLog],
@@ -94,19 +115,102 @@ function startBackend() {
   fs.closeSync(outLog);
   fs.closeSync(errLog);
 
-  backendProcess.on("exit", (code, signal) => {
+  legacyBackendProcess.on("exit", (code, signal) => {
     if (!isQuitting) {
       sendStatus("exited", "Backend exited", `code=${code ?? ""} signal=${signal ?? ""}`);
     }
   });
-  backendProcess.on("error", (error) => {
+  legacyBackendProcess.on("error", (error) => {
     sendStatus("failed", "Failed to launch backend", error.stack || String(error));
+  });
+}
+
+function startAppBackend() {
+  if (appBackendProcess) {
+    return;
+  }
+
+  truncateLogs(appBackendOutLogPath, appBackendErrLogPath);
+  const py = pythonPath();
+  const args = [
+    "-m",
+    "voxcpm_app.backend_server",
+    "--project-root",
+    projectDir,
+    "--port",
+    String(appBackendPort),
+    "--device",
+    process.env.VOXCPM_APP_DEVICE || "cuda",
+  ];
+  const outLog = fs.openSync(appBackendOutLogPath, "a");
+  const errLog = fs.openSync(appBackendErrLogPath, "a");
+
+  sendStatus("starting", "Starting VoxCPM App backend", `${py} ${args.join(" ")}`);
+  appBackendProcess = spawn(py, args, {
+    cwd: projectDir,
+    windowsHide: true,
+    stdio: ["ignore", outLog, errLog],
+    env: pythonEnv(),
+  });
+  fs.closeSync(outLog);
+  fs.closeSync(errLog);
+
+  appBackendProcess.on("exit", (code, signal) => {
+    if (!isQuitting) {
+      sendStatus("exited", "App backend exited", `code=${code ?? ""} signal=${signal ?? ""}`);
+    }
+  });
+  appBackendProcess.on("error", (error) => {
+    sendStatus("failed", "Failed to launch App backend", error.stack || String(error));
+  });
+}
+
+function postAppBackendJson(route, payload = {}) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify(payload || {});
+    const request = http.request(
+      `${appBackendUrl}${route}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(body),
+        },
+      },
+      (response) => {
+        let data = "";
+        response.setEncoding("utf8");
+        response.on("data", (chunk) => {
+          data += chunk;
+        });
+        response.on("end", () => {
+          let parsed = {};
+          try {
+            parsed = data.trim() ? JSON.parse(data) : {};
+          } catch (error) {
+            reject(new Error(`Invalid backend JSON: ${error.message}\n${data}`));
+            return;
+          }
+          if (response.statusCode < 200 || response.statusCode >= 300) {
+            reject(new Error(parsed.error || `Backend returned ${response.statusCode}`));
+            return;
+          }
+          resolve(parsed);
+        });
+      }
+    );
+    request.on("error", reject);
+    request.end(body, "utf8");
   });
 }
 
 function runAppService(action, payload = {}) {
   if (!appServiceActions.has(action)) {
     return Promise.reject(new Error(`Unsupported app service action: ${action}`));
+  }
+
+  if (!shouldStartLegacyWebUI) {
+    return postAppBackendJson("/app-service", { action, payload });
   }
 
   return new Promise((resolve, reject) => {
@@ -117,12 +221,7 @@ function runAppService(action, payload = {}) {
         cwd: projectDir,
         windowsHide: true,
         stdio: ["pipe", "pipe", "pipe"],
-        env: {
-          ...process.env,
-          PYTHONPATH: [path.join(projectDir, "src"), process.env.PYTHONPATH || ""]
-            .filter(Boolean)
-            .join(path.delimiter),
-        },
+        env: pythonEnv(),
       }
     );
 
@@ -176,10 +275,15 @@ function cleanupResidualBackends() {
 async function stopBackend() {
   isQuitting = true;
 
-  if (backendProcess && backendProcess.exitCode === null) {
-    backendProcess.kill();
+  if (legacyBackendProcess && legacyBackendProcess.exitCode === null) {
+    legacyBackendProcess.kill();
   }
-  backendProcess = null;
+  legacyBackendProcess = null;
+
+  if (appBackendProcess && appBackendProcess.exitCode === null) {
+    appBackendProcess.kill();
+  }
+  appBackendProcess = null;
 
   if (shouldStartLegacyWebUI) {
     await cleanupResidualBackends();
@@ -190,13 +294,26 @@ async function bootWebUI() {
   startBackend();
   sendStatus("starting", "Starting VoxCPM backend", mainUrl);
 
-  const ready = await waitForBackend();
+  const ready = await waitForBackend(mainUrl, () => legacyBackendProcess);
   if (!ready) {
     sendStatus("failed", "Failed to start WebUI", `Check logs:\n${outLogPath}\n${errLogPath}`);
     return;
   }
 
   sendStatus("ready", "VoxCPM WebUI is ready", mainUrl);
+}
+
+async function bootAppBackend() {
+  startAppBackend();
+  sendStatus("starting", "Starting VoxCPM App backend", appBackendUrl);
+
+  const ready = await waitForBackend(`${appBackendUrl}/health`, () => appBackendProcess);
+  if (!ready) {
+    sendStatus("failed", "Failed to start App backend", `Check logs:\n${appBackendOutLogPath}\n${appBackendErrLogPath}`);
+    return;
+  }
+
+  sendStatus("ready", "VoxCPM AppShell is ready", appBackendUrl);
 }
 
 function createWindow() {
@@ -235,11 +352,15 @@ function createWindow() {
 
 ipcMain.handle("get-shell-state", () => ({
   appMode: shouldStartLegacyWebUI ? "legacy-webui-dev" : "app-shell",
-  backendUrl: mainUrl,
-  mainPort,
+  backendUrl: shouldStartLegacyWebUI ? mainUrl : appBackendUrl,
+  mainPort: shouldStartLegacyWebUI ? mainPort : appBackendPort,
+  legacyBackendUrl: mainUrl,
+  appBackendUrl,
   projectDir,
   outLogPath,
   errLogPath,
+  appBackendOutLogPath,
+  appBackendErrLogPath,
   status: lastStatus,
 }));
 
@@ -247,6 +368,29 @@ ipcMain.handle("app-service", (_event, request) => {
   const action = request && typeof request.action === "string" ? request.action : "";
   const payload = request && typeof request.payload === "object" ? request.payload : {};
   return runAppService(action, payload);
+});
+
+ipcMain.handle("generate-audio", (_event, payload) => {
+  return postAppBackendJson("/generate-audio", payload || {});
+});
+
+ipcMain.handle("select-audio-file", async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: "Select reference audio",
+    properties: ["openFile"],
+    filters: [
+      { name: "Audio", extensions: ["wav", "mp3", "m4a", "flac", "ogg", "aac"] },
+      { name: "All Files", extensions: ["*"] },
+    ],
+  });
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+  const selectedPath = result.filePaths[0];
+  return {
+    path: selectedPath,
+    name: path.basename(selectedPath),
+  };
 });
 
 app.whenReady().then(() => {
@@ -257,11 +401,9 @@ app.whenReady().then(() => {
     });
     return;
   }
-  sendStatus(
-    "ready",
-    "VoxCPM AppShell is ready",
-    "App mode keeps Gradio on the original launcher route instead of embedding it."
-  );
+  bootAppBackend().catch((error) => {
+    sendStatus("failed", "Startup error", error.stack || String(error));
+  });
 });
 
 app.on("before-quit", async (event) => {

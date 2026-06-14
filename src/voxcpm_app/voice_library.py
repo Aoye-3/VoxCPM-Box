@@ -82,3 +82,11 @@ def delete_voice(paths: AppPaths, voice_id: str) -> VoiceRecord:
     finally:
         conn.close()
 
+
+def mark_voice_used(paths: AppPaths, voice_id: str) -> VoiceRecord:
+    conn = initialize_database(paths)
+    try:
+        return VoiceRepository(conn).mark_used(voice_id)
+    finally:
+        conn.close()
+

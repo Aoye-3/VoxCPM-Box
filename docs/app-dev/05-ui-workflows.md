@@ -3,16 +3,16 @@
 ## Main Generation Workflow
 
 1. User opens the Electron app.
-2. Electron opens the React app shell and shows a loading state.
+2. Electron opens the React app shell and starts the AppShell backend on `127.0.0.1:8818`.
 3. Electron sends AppShell status to the renderer through IPC.
 4. User selects Voice Design, Voice Cloning, or Ultimate Cloning from the left sidebar.
 5. The generation page renders native AppShell controls.
 6. User enters target text and optional control instruction.
-7. User either uploads a reference audio file or selects a saved voice after the app service exists.
+7. User either uploads a reference audio file or selects a saved voice.
 8. User clicks generate.
-9. The app creates a generation history record after history integration exists.
-10. The AppShell calls app-layer services or backend APIs after they exist.
-11. The app stores the output file and updates history.
+9. The AppShell calls `generate-audio`.
+10. The generation service creates a generation record, runs the model, and updates success or failure.
+11. The app stores the output file and refreshes history.
 12. User can play the result and find it later in history.
 
 The original Gradio WebUI is started separately through `start_voxcpm.bat` or direct `app.py` commands. It is not embedded in AppShell mode.
@@ -34,8 +34,9 @@ The sidebar and common action icons must come from `lucide-react`. Do not add ha
 
 Entry points:
 
-- After uploading reference audio.
-- After a successful generation using uploaded reference audio.
+- Voice Library import form.
+- Reference audio picker in generation pages.
+- After a successful generation.
 
 Required UI fields:
 
@@ -48,6 +49,7 @@ Success state:
 - Voice appears in the Voice Library selector.
 - Voice audio is copied to `data/app/voices/`.
 - Metadata is saved in SQLite.
+- Generated-output voices use `source="generated"`; uploaded voices use `source="upload"`.
 
 Failure state:
 

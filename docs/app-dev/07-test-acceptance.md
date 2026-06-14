@@ -23,6 +23,7 @@ Required scenarios:
 - Successful generation creates a `succeeded` history record.
 - Failed generation creates a `failed` history record with `error_summary`.
 - Reuse action restores generation parameters without auto-generating.
+- Successful generation output can be saved as a reusable voice with `source="generated"`.
 
 ## Electron Lifecycle Tests
 
@@ -31,6 +32,7 @@ Required scenarios:
 - Default AppShell opens the React renderer without starting or embedding the legacy Gradio WebUI.
 - Renderer receives AppShell status through IPC.
 - Voice Library and History can request data through the app-service IPC boundary.
+- Default AppShell starts the local backend at `127.0.0.1:8818` and reports readiness from `/health`.
 - Explicit `VOXCPM_START_LEGACY_GRADIO=1` development mode starts the legacy Python backend.
 - Closing the Electron window stops only AppShell-owned backend processes.
 
@@ -43,6 +45,24 @@ Required scenarios:
 - `list-generations` returns non-deleted history records.
 - Generation status actions move records through `pending`, `running`, `succeeded`, and `failed`.
 - Unknown CLI actions return a JSON error.
+
+## AppShell Backend Tests
+
+Required scenarios:
+
+- `/health` returns JSON readiness.
+- `/app-service` wraps existing voice and generation history actions.
+- `/generate-audio` supports no reference, uploaded reference, and saved voice reference.
+- Uploaded reference audio is copied into `data/app/tmp/`.
+- Saved voice generation updates `last_used_at`.
+- Failed synthesis records `status="failed"` and `error_summary`.
+- Invalid generation input returns a JSON error.
+
+Recommended verification command:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\test_voxcpm_app_storage.py tests\test_voxcpm_app_service_cli.py tests\test_voxcpm_app_generation_service.py --basetemp data\app\pytest-tmp
+```
 
 ## Regression Tests
 

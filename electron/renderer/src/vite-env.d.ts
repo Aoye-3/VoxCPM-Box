@@ -10,9 +10,13 @@ type ShellState = {
   appMode: "app-shell" | "legacy-webui-dev" | string;
   backendUrl: string;
   mainPort: number;
+  legacyBackendUrl: string;
+  appBackendUrl: string;
   projectDir: string;
   outLogPath: string;
   errLogPath: string;
+  appBackendOutLogPath: string;
+  appBackendErrLogPath: string;
   status: ShellStatus;
 };
 
@@ -55,10 +59,32 @@ type AppListResponse<T> = {
   items: T[];
 };
 
+type SelectedAudioFile = {
+  path: string;
+  name: string;
+};
+
+type GenerateAudioPayload = {
+  input_text: string;
+  control_instruction: string;
+  prompt_text: string;
+  cfg_value: number;
+  inference_timesteps: number;
+  normalize: boolean;
+  denoise: boolean;
+  reference:
+    | { kind: "none" }
+    | { kind: "upload"; path: string }
+    | { kind: "saved_voice"; voice_id: string };
+};
+
 interface Window {
   voxcpmShell?: {
     onStatus(callback: (payload: ShellStatus) => void): void;
     getShellState(): Promise<ShellState>;
+    selectAudioFile(): Promise<SelectedAudioFile | null>;
+    generateAudio(payload: GenerateAudioPayload): Promise<AppGeneration>;
+    mediaUrl(projectRelativePath: string): string;
     listVoices(payload?: { include_deleted?: boolean }): Promise<AppListResponse<AppVoice>>;
     createVoice(payload: {
       source_audio_path: string;

@@ -29,7 +29,7 @@ start_electron_shell.bat or start_electron_shell.vbs
   -> Electron main process
     -> React renderer app shell
     -> app-mode IPC state
-    -> future app adapters/services
+    -> AppShell Python backend on 127.0.0.1:8818
       -> upstream source behavior through stable boundaries
 ```
 
@@ -98,13 +98,13 @@ Responsibilities:
 
 Electron remains responsible for:
 
-- Starting and stopping future AppShell-owned backend services when they exist.
+- Starting and stopping the AppShell-owned Python backend service.
 - Showing loading state while AppShell initializes.
 - Sending backend status to the React renderer through IPC.
 - Hosting the desktop app window.
 - Closing AppShell-owned backend processes when the desktop window closes.
 
-In default AppShell mode, Electron should not start or embed the legacy Gradio WebUI. A legacy WebUI development mode may be enabled explicitly by environment variable during development, but it is not the normal AppShell path.
+In default AppShell mode, Electron starts `voxcpm_app.backend_server` on `127.0.0.1:8818`; it does not start or embed the legacy Gradio WebUI. A legacy WebUI development mode may be enabled explicitly by `VOXCPM_START_LEGACY_GRADIO=1`, but it is not the normal AppShell path.
 
 Electron should not own:
 
@@ -123,7 +123,7 @@ The React renderer is responsible for:
 - Startup, ready, failed, and exited UI states.
 - Voice Library and History surfaces as app features.
 - Settings display for runtime status, paths, local FFmpeg, and future cleanup actions.
-- Native app-mode generation pages that can later call app services or backend APIs.
+- Native app-mode generation pages that call the AppShell backend for voice import, audio generation, generated-output playback, and history refresh.
 - Product pages for ordinary-user workflows such as video narration, AIGC short-film dubbing, script breakdown, batch tasks, role profiles, and saved voices.
 
 The React renderer should use `lucide-react` for navigation and action icons. It should not introduce hand-drawn SVG icons for common shell controls.
@@ -138,6 +138,17 @@ Gradio remains responsible for the original developer WebUI route:
 - Passing user-selected voice paths into generation.
 
 The AppShell must not embed Gradio as its main UI. When app-layer services exist, both AppShell and the legacy Gradio route may call those services without sharing UI code.
+
+## AppShell Backend Boundary
+
+`src/voxcpm_app/backend_server.py` exposes a local JSON HTTP service for the AppShell:
+
+- `GET /health`: readiness probe used by Electron startup.
+- `POST /app-service`: compatibility wrapper for existing app service actions.
+- `POST /generate-audio`: synchronous generation request that creates and updates generation history.
+- `GET /media?path=...`: read-only serving for project-relative stored audio paths.
+
+`src/voxcpm_app/generation_service.py` owns the generation lifecycle. It resolves uploaded references into `data/app/tmp/`, resolves saved voices from SQLite, serializes model use with an in-process lock, writes successful outputs through the generation history service, and marks failed attempts with `error_summary`.
 
 ## Upstream Sync Boundary
 

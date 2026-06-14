@@ -7,6 +7,15 @@ contextBridge.exposeInMainWorld("voxcpmShell", {
   getShellState() {
     return ipcRenderer.invoke("get-shell-state");
   },
+  selectAudioFile() {
+    return ipcRenderer.invoke("select-audio-file");
+  },
+  generateAudio(payload) {
+    return ipcRenderer.invoke("generate-audio", payload);
+  },
+  mediaUrl(projectRelativePath) {
+    return `http://127.0.0.1:8818/media?path=${encodeURIComponent(projectRelativePath)}`;
+  },
   listVoices(payload = {}) {
     return ipcRenderer.invoke("app-service", { action: "list-voices", payload });
   },

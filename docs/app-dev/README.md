@@ -11,7 +11,7 @@ This documentation describes VoxCPM-Box application-layer development on top of 
 - The current Electron renderer uses Vite, React, TypeScript, and `lucide-react`.
 - A local app storage layer now exists under `src/voxcpm_app/` for Voice Library and Generation History metadata.
 - The Electron AppShell reads Voice Library and History records through IPC-backed app service calls.
-- Native save-voice actions, generation execution, and history recording from the generation forms are still planned integration work.
+- Native save-voice actions, generation execution, and history recording now run through the AppShell backend.
 - VoxCPM-Box targets ordinary-user voiceover workflows while preserving upstream source behavior.
 
 ## First Scope

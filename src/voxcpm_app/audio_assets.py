@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import shutil
 from pathlib import Path
+from uuid import uuid4
 
 from .paths import AppPaths
 
@@ -32,6 +33,17 @@ def copy_generation_audio(paths: AppPaths, source_output_audio_path: str | Path,
         raise FileNotFoundError(f"source output audio does not exist: {source}")
     destination = paths.generations_dir / f"{generation_id}.wav"
     paths.generations_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, destination)
+    return paths.project_relative(destination)
+
+
+def copy_tmp_audio(paths: AppPaths, source_audio_path: str | Path) -> str:
+    source = Path(source_audio_path)
+    if not source.exists():
+        raise FileNotFoundError(f"source audio does not exist: {source}")
+    extension = source.suffix.lower() or ".wav"
+    destination = paths.tmp_dir / f"{uuid4()}{extension}"
+    paths.tmp_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, destination)
     return paths.project_relative(destination)
 

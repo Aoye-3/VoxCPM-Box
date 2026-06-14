@@ -122,6 +122,19 @@ class VoiceRepository:
         self.conn.commit()
         return deleted
 
+    def mark_used(self, voice_id: str) -> VoiceRecord:
+        current = self.get(voice_id)
+        if current is None:
+            raise KeyError(f"voice not found: {voice_id}")
+        now = utc_now()
+        updated = replace(current, last_used_at=now, updated_at=now)
+        self.conn.execute(
+            "update voices set last_used_at = ?, updated_at = ? where id = ?",
+            (updated.last_used_at, updated.updated_at, voice_id),
+        )
+        self.conn.commit()
+        return updated
+
 
 class GenerationRepository:
     def __init__(self, conn: sqlite3.Connection):

@@ -39,6 +39,8 @@ Behavior:
 - Insert a `voices` row.
 - Return the created voice metadata.
 
+`source` may be `upload` for user-selected reference audio or `generated` when the user saves a successful generation output as a reusable voice.
+
 #### `list_voices`
 
 Input:
@@ -176,12 +178,59 @@ Output:
 The AppShell should:
 
 - Load saved voices with `list_voices`.
-- Pass the selected voice `audio_path` into the future generation service contract.
-- Create a generation record before calling generation services.
-- Mark the generation as succeeded or failed after generation returns.
-- Copy successful output audio into `data/app/generations/`.
+- Start the AppShell backend service in default app mode.
+- Pass either an uploaded reference audio path or saved voice id to `generate-audio`.
+- Let the generation service create, run, succeed, or fail generation records.
+- Play stored audio through project-relative media URLs.
 
 The AppShell must not embed the legacy Gradio WebUI as its primary UI.
+
+### `generate-audio`
+
+Input:
+
+```json
+{
+  "input_text": "string",
+  "control_instruction": "string",
+  "prompt_text": "string",
+  "cfg_value": 2.0,
+  "inference_timesteps": 10,
+  "normalize": false,
+  "denoise": false,
+  "reference": {
+    "kind": "none"
+  }
+}
+```
+
+Reference variants:
+
+```json
+{ "kind": "none" }
+{ "kind": "upload", "path": "absolute or process-readable audio path" }
+{ "kind": "saved_voice", "voice_id": "uuid" }
+```
+
+Behavior:
+
+- Uploaded references are copied to `data/app/tmp/` before generation.
+- Saved voices resolve through the `voices` table and update `last_used_at` after success.
+- Successful output audio is copied to `data/app/generations/{id}.wav`.
+- Model execution is serialized by the AppShell backend process.
+
+Output:
+
+```json
+{
+  "id": "uuid",
+  "status": "succeeded",
+  "output_audio_path": "data/app/generations/{id}.wav",
+  "sample_rate": 48000
+}
+```
+
+Invalid requests return a JSON error with HTTP 400 from the AppShell backend. Synthesis failures return a generation record with `status: "failed"` and `error_summary`.
 
 ## Legacy Gradio Compatibility Contract
 
@@ -199,10 +248,16 @@ Electron should:
 
 - Start the React AppShell renderer.
 - Send AppShell status to the renderer through IPC.
-- Start and stop future AppShell-owned backend services when those services exist.
+- Start and stop `voxcpm_app.backend_server` in default AppShell mode.
 - Keep the original Gradio route separate from AppShell mode.
 
 Electron should not directly mutate SQLite app data in the first implementation.
+
+Renderer IPC additions:
+
+- `selectAudioFile()`
+- `generateAudio(payload)`
+- `mediaUrl(projectRelativePath)`
 
 ## Local App Service CLI
 
